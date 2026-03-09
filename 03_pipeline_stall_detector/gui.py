@@ -18,6 +18,9 @@ class App(tk.Tk):
         self.title("商談停滞検知")
         self.geometry("1200x720")
         self.df = None
+        self._sort_col = ""
+        self._sort_reverse = False
+        self._order_maps = {'停滞判定': {'重度停滞': 0, '停滞': 1, '正常': 2}}
         self._build()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -39,9 +42,10 @@ class App(tk.Tk):
         pane.add(left, weight=3)
         pane.add(right, weight=2)
         cols = ("案件名", "フェーズ", "金額", "滞留日数", "基準日数", "停滞判定")
+        self._cols = cols
         self.tree = ttk.Treeview(left, columns=cols, show="headings")
         for c, w in zip(cols, (200, 100, 110, 90, 90, 100)):
-            self.tree.heading(c, text=c)
+            self.tree.heading(c, text=c, command=lambda col=c: self._sort_by(col))
             self.tree.column(c, width=w, anchor=tk.CENTER)
         self.tree.column("案件名", anchor=tk.W)
         self.tree.tag_configure("重度停滞", background="#f8d7da")
@@ -51,6 +55,36 @@ class App(tk.Tk):
         self.fig, self.ax = plt.subplots(figsize=(5.2, 5.5))
         self.canvas = FigureCanvasTkAgg(self.fig, master=right)
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+    def _sort_by(self, col):
+        self._sort_reverse = (self._sort_col == col) and not self._sort_reverse
+        self._sort_col = col
+        self._apply_sort()
+
+    def _coerce_sort_value(self, value, col=None):
+        text = str(value).strip()
+        order_map = self._order_maps.get(col or self._sort_col, {})
+        if text in order_map:
+            return order_map[text]
+        compact = text.replace(',', '').replace('%', '').replace('¥', '').replace('k', '').strip()
+        if compact in {'', '-', '—'}:
+            return float('-inf') if not self._sort_reverse else float('inf')
+        try:
+            return float(compact)
+        except ValueError:
+            return text
+
+    def _apply_sort(self):
+        if not getattr(self, '_sort_col', ''):
+            return
+        children = list(self.tree.get_children(''))
+        children.sort(key=lambda item: self._coerce_sort_value(self.tree.set(item, self._sort_col), self._sort_col), reverse=self._sort_reverse)
+        for index, item in enumerate(children):
+            self.tree.move(item, '', index)
+        indicator = ' ▼' if self._sort_reverse else ' ▲'
+        for col in self._cols:
+            base = col.rstrip(' ▲▼')
+            self.tree.heading(col, text=base + (indicator if col == self._sort_col else ''), command=lambda c=col: self._sort_by(c))
 
     def _open(self):
         path = filedialog.askopenfilename(initialdir=str(main.DATA_DIR), filetypes=[("CSV files", "*.csv")])
