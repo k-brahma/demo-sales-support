@@ -1,0 +1,15 @@
+.venv/
+.venv-linux/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.mypy_cache/
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+*/__pycache__/
+*/results/
